@@ -1,0 +1,8 @@
+# Artifacts and stuff
+/local
+
+# IDE
+/.idea
+
+# Docker container management
+.docker
