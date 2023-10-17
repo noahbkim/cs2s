@@ -8,21 +8,11 @@ It provides a `Dockerfile` and setup script for managing an Ubuntu container wit
 In order to use `cs2s` you will need the following.
 
 1. Docker
-2. A Steam account
+2. Any Steam account credentials
 3. A recent Python 3
 
-Because there is currently no dedicated server, you must provide a steam account to download the client version of CS2.
-This is facilitated by `--secret id=steamlogin`, which expects a newline-delimited series of `SteamCMD` commands that will authenticate you.
-I recommend putting the following in `docker/.steamlogin`, which is already in the `.gitignore`:
-
-```
-login <username> <password> <2fa>
-```
-
-You can then run the following command to build the image:
-**Warning**: the resulting image will be at least as large as a CS2 client installation (on the order of 50-60 GB).
-Make sure you've configured Docker to store the image somewhere with plenty of storage.
-Also be sure to prune unused images regularly (naming the images, which is handled by `docker.py`, avoids this).
+To get started, build the included Docker image.
+This creates an Ubuntu 20.04 LTS with a whole host of packages including SteamCMD, CS2 dependencies, Metamod dependencies, and developer tools.
 
 ```
 # From the root of this repository
@@ -31,15 +21,47 @@ $ python3 docker.py build
 
 ## Use
 
-I've included a Python script that automatically manages a container of the constructed image.
-Use it as follows.
-Note that if you have not run the build step described above, the management script will build the image in a subprocess.
-Currently, the subprocess does not pipe its output back to the shell, so you will not be able to see progress. 
+Once the image is built, you can start a container.
+Please note that the commands for managing the container are rudimentary at best; you may have to delete the lockfile or manage containers and images manually.
 
 ```
-# Start a container with our image and open a shell in it
-$ python3 docker.py shell
+# Start a container with our image
+host $ python3 docker.py start
 
-# Kill the container
+# Open a shell in the currently running image (will automatically invoke `start` if needed)
+host $ python3 docker.py shell
+```
+
+Once you've opened a shell in your container, you'll have to install CS2.
+You can do this via `SteamCMD` as the `steam` user.
+
+```
+container $ su steam
+container $ steamcmd
+Steam>login <username>
+Steam>app_update 730 validate
+Steam>quit
+```
+
+You'll then be able to run the dedicated server via the following:
+
+```
+container $ su steam
+container $ ~/.steam/SteamApps/common/Counter-Strike\ Global\ Offensive/game/bin/linuxsteamrt64/cs2 -dedicated +map de_dust2
+```
+
+## Advanced Use
+
+Until the management script improves, the following commands will have to suffice.
+
+```
+# Kill the container (not typically necessary besides to save resources), will erase CS2 installation
 $ python3 docker.py stop
+
+# Manually kill the container
+$ docker container ls  # Find your container ID in the output
+$ docker container kill <id>
+
+# Manually delete the lockfile to indicate to `docker.py` there's no running container
+$ rm .docker
 ```

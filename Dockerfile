@@ -1,9 +1,5 @@
 FROM ubuntu:focal
 
-# Scripts and configuration
-COPY docker/.bashrc /root/
-RUN sed -i 's/\r$//' /root/.bashrc
-
 # Enable 32-bit dependencies
 RUN apt update \
     && apt install -y software-properties-common \
@@ -58,7 +54,14 @@ EXPOSE 27020/udp
 EXPOSE 27005/udp
 EXPOSE 26900/udp
 
-# Create a Steam user install CS in their home
+# Create a Steam user and run `steamcmd` once to update
 RUN adduser --disabled-password --gecos "" steam
-RUN --mount=type=secret,id=steamlogin,dst=/home/steam/.steamlogin,required=true,mode=0444 \
-    su steam -c "steamcmd '+force_install_dir /home/steam +runscript /home/steam/.steamlogin +app_update 730 validate +quit'"
+RUN su steam -c "steamcmd +quit"
+
+# Scripts and configuration
+COPY docker/.bashrc /root/
+RUN sed -i 's/\r$//' /root/.bashrc
+
+# This would install CS2 into the actual image but I can't get it to work
+# RUN --mount=type=secret,id=steamlogin,dst=/home/steam/.steamlogin,required=true,mode=0444 \
+#     su steam -c "steamcmd '+force_install_dir /home/steam +runscript /home/steam/.steamlogin +app_update 730 validate +quit'"

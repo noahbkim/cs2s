@@ -34,9 +34,13 @@ def build_docker_image(name: str) -> int:
 
     print("Building the Docker image")
     process = subprocess.run(
-        ("docker", "build", REPOSITORY_PATH, "-t", name, "--secret", "id=steamlogin,src=docker/.steamlogin"),
+        ("docker", "build", REPOSITORY_PATH, "-t", f"{name}:latest"),
         shell=True,
     )
+
+    # Prune other images while we're at it
+    subprocess.check_call(("docker", "image", "prune", "--filter", f"label={name}"))
+
     return process.returncode
 
 
@@ -45,7 +49,7 @@ def start_docker_container(image_id: str) -> str:
 
     print(f"Starting the Docker container from {image_id}")
     process = subprocess.run(
-        ("docker", "run", "-v", f"{REPOSITORY_PATH}:/work", "-d", "-t", image_id),
+        ("docker", "run", "-v", f"{REPOSITORY_PATH}:/work", "-d", "-t", "-P", image_id),
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -151,7 +155,7 @@ def main() -> int:
     subparsers.add_parser("build")
     subparsers.add_parser("start")
     stop_parser = subparsers.add_parser("stop")
-    stop_parser.add_argument("-f", "--force", help="Always delete the lockfile")
+    stop_parser.add_argument("-f", "--force", help="Always delete the lockfile", action="store_true")
     subparsers.add_parser("shell")
     args = parser.parse_args()
 
