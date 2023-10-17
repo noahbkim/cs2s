@@ -6,3 +6,6 @@
 
 # Docker container management
 .docker
+
+# Steam login for docker container
+docker/.steamlogin

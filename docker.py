@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import argparse
-import re
+import functools
 import subprocess
 from pathlib import Path
 
 REPOSITORY_PATH = Path(__file__).absolute().parent
 CONTAINER_LOCK_PATH = REPOSITORY_PATH / ".docker"
-IMAGE_ID_PATTERN = "writing image sha256:([abcdefABCDEF\\d]+)"
 
 
 class DockerError(Exception):
     """For emitting errors on the CLI."""
 
 
+@functools.cache
 def check_docker_available() -> None:
     """Check the output of the toplevel docker command."""
 
@@ -29,28 +29,15 @@ def check_docker_available() -> None:
         raise DockerError(f"Docker is unavailable: {process.stderr}")
 
 
-def build_docker_image(name: str | None = None) -> str:
-    """Build the adjacent Dockerfile."""
+def build_docker_image(name: str) -> int:
+    """Build the Dockerfile and assign it the given name."""
 
     print("Building the Docker image")
-    extra_args = ("-t", name) if name is not None else ()
     process = subprocess.run(
-        ("docker", "build", REPOSITORY_PATH, *extra_args),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        ("docker", "build", REPOSITORY_PATH, "-t", name, "--secret", "id=steamlogin,src=docker/.steamlogin"),
         shell=True,
     )
-
-    if process.returncode != 0:
-        raise DockerError(f"Failed to build the Docker image: {process.stderr}")
-
-    image_id_match = re.search(IMAGE_ID_PATTERN, process.stderr)
-    if image_id_match is None:
-        raise DockerError(f"Failed to determine the image ID: {process.stderr}")
-    image_id = image_id_match.group(1)
-
-    return image_id
+    return process.returncode
 
 
 def start_docker_container(image_id: str) -> str:
@@ -124,34 +111,58 @@ def remove_container_lockfile() -> str | None:
         raise DockerError(f"Failed to remove {CONTAINER_LOCK_PATH}: {error}")
 
 
+def build() -> int:
+    print("Warning: this will create an image at least the size of a CS2 client installation!")
+    check_docker_available()
+    return build_docker_image("cs2s")
+
+
+def start() -> int:
+    check_docker_available()
+    container_id = start_docker_container("cs2s")
+    write_container_lockfile(container_id)
+    return 0
+
+
+def shell() -> int:
+    check_docker_available()
+    if not CONTAINER_LOCK_PATH.exists():
+        start()
+    container_id = read_container_lockfile()
+    return open_docker_container_shell(container_id)
+
+
+def stop(force: bool = False) -> int:
+    check_docker_available()
+    container_id = read_container_lockfile()
+    try:
+        stop_docker_container(container_id)
+    finally:
+        if force:
+            remove_container_lockfile()
+    return 0
+
+
 def main() -> int:
     """Called on program start."""
 
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command")
+    subparsers.add_parser("build")
     subparsers.add_parser("start")
-    subparsers.add_parser("stop")
+    stop_parser = subparsers.add_parser("stop")
+    stop_parser.add_argument("-f", "--force", help="Always delete the lockfile")
     subparsers.add_parser("shell")
     args = parser.parse_args()
 
+    if args.command == "build":
+        return build()
     if args.command == "start":
-        check_docker_available()
-        image_id = build_docker_image("cs2s")
-        container_id = start_docker_container(image_id)
-        write_container_lockfile(container_id)
-        return 0
-
+        return start()
     elif args.command == "shell":
-        check_docker_available()
-        container_id = read_container_lockfile()
-        return open_docker_container_shell(container_id)
-
+        return shell()
     elif args.command == "stop":
-        check_docker_available()
-        container_id = read_container_lockfile()
-        stop_docker_container(container_id)
-        remove_container_lockfile()
-        return 0
+        return stop(force=args.force)
 
 
 if __name__ == "__main__":
