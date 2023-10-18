@@ -84,6 +84,7 @@ RUN sed -i 's/^plugins=.*/plugins=(git fzf dirhistory)/' /root/.zshrc
 RUN sed -i 's/^ZSH_THEME=.*/ZSH_THEME="cs2s"/' /root/.zshrc
 COPY cs2s.zsh-theme /root/.oh-my-zsh/themes
 RUN sed -i 's/\r$//' /root/.oh-my-zsh/themes/cs2s.zsh-theme
+RUN echo "cd /work" >> /root/.zshrc
 
 # Bin scripts
 COPY bin/* /usr/local/bin/
