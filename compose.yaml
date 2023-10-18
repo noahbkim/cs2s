@@ -1,0 +1,21 @@
+services:
+  cs2s:
+    build: .  # Use ./Dockerfile
+    tty: true  # Allows us to attach
+    environment:  # Defaults defined in .env
+      # Ports to bind to on the host
+      - PORT=${PORT}
+      - TV_PORT=${TV_PORT}
+      - CLIENT_PORT=${CLIENT_PORT}
+      - STEAM_PORT=${STEAM_PORT}
+      # Mounted directory for development
+      - WORK=${WORK}
+      # Timezone
+      - TZ=${TZ}
+    ports:
+      - ${PORT}:27015
+      - ${TV_PORT}:27020
+      - ${CLIENT_PORT}:27005
+      - ${STEAM_PORT}:26900
+    volumes:
+      - ${WORK}:/work
