@@ -76,6 +76,9 @@ RUN ln -s /home/steam/.steam/steamcmd/linux32/steamclient.so /home/steam/.steam/
 # Install the latest CMake; the Debian package is pretty out of date
 RUN pip install cmake
 
+# Install AMBuild
+RUN git clone --depth 1 https://github.com/alliedmodders/ambuild ~/.ambuild && pip install ~/.ambuild
+
 # Developer stuff
 RUN apt install -y zsh ripgrep fd-find
 RUN git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && yes | ~/.fzf/install
