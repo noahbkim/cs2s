@@ -1,7 +1,12 @@
+volumes:
+  cs2s-client:  # Persist our download
+    name: cs2s-client
 services:
   cs2s:
     build: .  # Use ./Dockerfile
     tty: true  # Allows us to attach
+    cap_add:
+      - SYS_ADMIN  # Allows us to mount overlays
     environment:  # Defaults defined in .env
       # Ports to bind to on the host
       - PORT=${PORT}
@@ -13,9 +18,13 @@ services:
       # Timezone
       - TZ=${TZ}
     ports:
-      - ${PORT}:27015
-      - ${TV_PORT}:27020
-      - ${CLIENT_PORT}:27005
-      - ${STEAM_PORT}:26900
+      - ${PORT}:27015/tcp
+      - ${PORT}:27015/udp
+      - ${TV_PORT}:27020/udp
+      - ${CLIENT_PORT}:27005/udp
+      - ${STEAM_PORT}:26900/udp
     volumes:
-      - ${WORK}:/work
+      - ${WORK}:/work  # Mount the current working directory
+      - type: volume  # Persist the downloaded client
+        source: cs2s-client
+        target: /cs2/

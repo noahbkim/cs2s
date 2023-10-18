@@ -1,0 +1,165 @@
+#!/usr/bin/python3.11
+
+from __future__ import annotations
+
+import argparse
+import os
+import pwd
+import shlex
+import shutil
+import subprocess
+from pathlib import Path
+
+STEAM_USER = STEAM_GROUP = "steam"
+STEAM_PATH = Path("/home/steam")
+OVERLAY_PATH = STEAM_PATH / ".overlay"
+GAME_PATH = Path("/cs2")
+
+# Always create this
+OVERLAY_PATH.mkdir(exist_ok=True)
+shutil.chown(OVERLAY_PATH, user=STEAM_USER, group=STEAM_GROUP)
+
+
+def _create_directory(path: Path) -> int:
+    """Create and chown a new directory, error if it exists."""
+
+    if path.exists():
+        print(f"Overlay {path} already exists!")
+
+    try:
+        path.mkdir()
+    except OSError as error:
+        print(f"Failed to create overlay path: {error}")
+        return error.errno
+
+    return 0
+
+
+def _delete_directory(path: Path) -> int:
+    """Delete a directory, return error code."""
+
+    shutil.rmtree(path, ignore_errors=True)
+    return 0
+
+
+def _run(*args: str | Path, **kwargs: object) -> int:
+    """Run a subprocess, print error if nonzero."""
+
+    # Subprocess isn't working and I don't want to debug it
+    command = shlex.join(map(str, args))
+    print("Subprocess", " ".join(f"{key}={value}" for key, value in kwargs.items()) or "{}", command)
+    return subprocess.run(args, **kwargs).returncode
+
+
+def add(name: str) -> int:
+    """Add a new, writable overlay on top of the CS2 installation."""
+
+    # Do this first to check for collisions
+    overlay_path = STEAM_PATH / name
+    print(f"Creating overlay {overlay_path}")
+    if status := _create_directory(overlay_path):
+        return status
+
+    overlay_data_path = OVERLAY_PATH / name
+    print(f"Creating overlay data {overlay_data_path}")
+    if status := _create_directory(overlay_data_path):
+        _delete_directory(overlay_path)
+        return status
+
+    print(f"Creating mounting overlay data")
+    if status := _run("mount", "-t", "tmpfs", "tmpfs", overlay_data_path):
+        _delete_directory(overlay_data_path)
+        _delete_directory(overlay_path)
+        return status
+
+    overlay_upper_path = overlay_data_path / "upper"
+    print(f"Creating upper path {overlay_upper_path}")
+    if status := _create_directory(overlay_upper_path):
+        _run("umount", overlay_data_path)
+        _delete_directory(overlay_data_path)
+        _delete_directory(overlay_path)
+        return status
+
+    overlay_work_path = overlay_data_path / "work"
+    print(f"Creating work path {overlay_work_path}")
+    if status := _create_directory(overlay_work_path):
+        _run("umount", overlay_data_path)
+        _delete_directory(overlay_data_path)
+        _delete_directory(overlay_path)
+        return status
+
+    overlay_mount_options = (
+        f'lowerdir={GAME_PATH},'
+        f'upperdir={overlay_upper_path},'
+        f'workdir={overlay_work_path}'
+    )
+    print(f"Mounting the overlay")
+    if status := _run("mount", "-t", "overlay", "overlay", "-o", overlay_mount_options, overlay_path):
+        _run("umount", overlay_data_path)
+        _delete_directory(overlay_data_path)
+        _delete_directory(overlay_path)
+        return status
+
+
+def start(name: str, rest: list[str | Path]) -> int:
+    """Start the dedicated server out of an overlay."""
+
+    start_path = STEAM_PATH / name / "game" / "bin" / "linuxsteamrt64" / "cs2"
+    if not start_path.is_file():
+        print(f"Cannot find {start_path}")
+        return -1
+
+    # Permanently set our user ID to steam and hand off to the server process
+    steam_uid = pwd.getpwnam("steam").pw_uid
+    os.setresuid(steam_uid, steam_uid, steam_uid)
+    # Reset $HOME so dynamic libraries are loaded properly; reset a couple other variables while we're here
+    # https://man7.org/linux/man-pages/man7/environ.7.html
+    os.environ["LOGNAME"] = STEAM_USER
+    os.environ["HOME"] = os.environ["PWD"] = str(STEAM_PATH)
+    os.execl(start_path, "-dedicated", *rest)
+
+
+def remove(name: str) -> int:
+    """Unmount and remove an overlay."""
+
+    overlay_path = STEAM_PATH / name
+    print(f"Unmounting overlay {overlay_path}")
+    status = _run("umount", overlay_path)
+    print(f"Deleting overlay {overlay_path}")
+    status |= _delete_directory(overlay_path)
+
+    overlay_data_path = OVERLAY_PATH / name
+    print(f"Unmounting overlay data {overlay_data_path}")
+    status |= _run("umount", overlay_data_path)
+    print(f"Deleting overlay data {overlay_data_path}")
+    status |= _delete_directory(overlay_data_path)
+
+    return status
+
+
+def main() -> int:
+    """Manage overlays of the installed server."""
+
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    commands = parser.add_subparsers(dest="command")
+    add_parser = commands.add_parser("add")
+    add_parser.add_argument("name", help="A name to assign the overlay.")
+    start_parser = commands.add_parser("start")
+    start_parser.add_argument("name", help="A name to assign the overlay.")
+    start_parser.add_argument("rest", nargs=argparse.REMAINDER, help="Forward args to server start.")
+    remove_parser = commands.add_parser("remove")
+    remove_parser.add_argument("name", help="A name to assign the overlay.")
+
+    args = parser.parse_args()
+    if args.command == "add":
+        return add(args.name)
+    elif args.command == "start":
+        return start(args.name, args.rest)
+    elif args.command == "remove":
+        return remove(args.name)
+
+    return 1
+
+
+if __name__ == "__main__":
+    exit(main())
