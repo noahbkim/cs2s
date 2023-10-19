@@ -76,6 +76,9 @@ RUN ln -s /home/steam/.steam/steamcmd/linux32/steamclient.so /home/steam/.steam/
 # Install the latest CMake; the Debian package is pretty out of date
 RUN pip install cmake
 
+# Install AMBuild
+RUN git clone --depth 1 https://github.com/alliedmodders/ambuild ~/.ambuild && pip install ~/.ambuild
+
 # Developer stuff
 RUN apt install -y zsh ripgrep fd-find
 RUN git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && yes | ~/.fzf/install
@@ -84,6 +87,7 @@ RUN sed -i 's/^plugins=.*/plugins=(git fzf dirhistory)/' /root/.zshrc
 RUN sed -i 's/^ZSH_THEME=.*/ZSH_THEME="cs2s"/' /root/.zshrc
 COPY cs2s.zsh-theme /root/.oh-my-zsh/themes
 RUN sed -i 's/\r$//' /root/.oh-my-zsh/themes/cs2s.zsh-theme
+RUN echo "cd /work" >> /root/.zshrc
 
 # Bin scripts
 COPY bin/* /usr/local/bin/
