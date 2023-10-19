@@ -19,7 +19,7 @@ local user="%(!.%{$fg[blue]%}.%{$fg[blue]%})%n%{$reset_color%}"
 local host="@${host_repr[$HOST]:-$HOST}%{$reset_color%}"
 
 # Compacted $PWD
-local pwd="%{$fg[blue]%}%c%{$reset_color%}"
+local pwd="%{$fg[blue]%}%0~%{$reset_color%}"
 
 PROMPT='${return_code}${time} ${user}${host} ${pwd} $(git_prompt_info)'
 
