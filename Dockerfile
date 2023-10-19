@@ -17,7 +17,6 @@ RUN apt install -y \
         make \
         valgrind \
         gdb \
-        cmake \
         curl \
         pkg-config \
         wget \
@@ -29,7 +28,8 @@ RUN apt install -y \
         lib32stdc++-7-dev \
         lib32z1-dev \
         libc6-i386  \
-        libc6-dev-i386
+        libc6-dev-i386 \
+        protobuf-compiler
 
 # SteamCMD; note we have to manually accept Steam TOS in advance here
 RUN echo steam steam/question select "I AGREE" | debconf-set-selections
@@ -80,7 +80,7 @@ RUN pip install cmake
 RUN git clone --depth 1 https://github.com/alliedmodders/ambuild ~/.ambuild && pip install ~/.ambuild
 
 # Developer stuff
-RUN apt install -y zsh ripgrep fd-find
+RUN apt install -y zsh tmux ripgrep fd-find
 RUN git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && yes | ~/.fzf/install
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 RUN sed -i 's/^plugins=.*/plugins=(git fzf dirhistory)/' /root/.zshrc
@@ -88,6 +88,7 @@ RUN sed -i 's/^ZSH_THEME=.*/ZSH_THEME="cs2s"/' /root/.zshrc
 COPY cs2s.zsh-theme /root/.oh-my-zsh/themes
 RUN sed -i 's/\r$//' /root/.oh-my-zsh/themes/cs2s.zsh-theme
 RUN echo "cd /work" >> /root/.zshrc
+RUN chsh -s /usr/bin/zsh
 
 # Bin scripts
 COPY bin/* /usr/local/bin/
