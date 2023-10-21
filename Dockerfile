@@ -95,6 +95,6 @@ RUN sed -i 's/\r$//' /root/.oh-my-zsh/themes/cs2s.zsh-theme
 RUN echo "cd /work" >> /root/.zshrc
 RUN chsh -s /usr/bin/zsh
 
-# Bin scripts
+# Copy the cs2s bin scripts
 COPY bin/* /usr/local/bin/
 RUN find /usr/local/bin/ -type f | xargs sed -i 's/\r$//'

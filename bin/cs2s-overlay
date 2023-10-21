@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import pwd
 import shlex
 import shutil
 import subprocess
+import tempfile
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any, TextIO
 
 STEAM_USER = STEAM_GROUP = "steam"
 STEAM_PATH = Path("/home/steam")
@@ -20,14 +24,14 @@ OVERLAY_PATH.mkdir(exist_ok=True)
 shutil.chown(OVERLAY_PATH, user=STEAM_USER, group=STEAM_GROUP)
 
 
-def _create_directory(path: Path) -> int:
+def _create_directory(path: Path, exist_ok: bool = False) -> int:
     """Create and chown a new directory, error if it exists."""
 
-    if path.exists():
-        print(f"Overlay {path} already exists!")
+    if not exist_ok and path.exists():
+        print(f"Path {path} already exists!")
 
     try:
-        path.mkdir()
+        path.mkdir(exist_ok=exist_ok)
     except OSError as error:
         print(f"Failed to create overlay path: {error}")
         return error.errno
@@ -51,12 +55,26 @@ def _run(*args: str | Path, **kwargs: object) -> int:
     return subprocess.run(args, **kwargs).returncode
 
 
-def add(name: str) -> int:
+@contextlib.contextmanager
+def _replace_file(path: Path, **kwargs: Any) -> Iterator[tuple[TextIO, TextIO]]:
+    """Atomically rewrite a file."""
+
+    with tempfile.NamedTemporaryFile(**kwargs, mode="w", delete=False, dir=path.parent) as write:
+        with path.open(**kwargs, mode="r") as read:
+            yield read, write
+        Path(write.name).replace(path)
+        os.chmod(path, 0o755)
+
+
+def add(name: str, replace: bool, addons: bool) -> int:
     """Add a new, writable overlay on top of the CS2 installation."""
 
     # Do this first to check for collisions
     overlay_path = STEAM_PATH / name
     print(f"Creating overlay {overlay_path}")
+    if overlay_path.exists() and replace:
+        print(f"Overlay {overlay_path} already exists, removing")
+        remove(name)
     if status := _create_directory(overlay_path):
         return status
 
@@ -99,6 +117,21 @@ def add(name: str) -> int:
         _delete_directory(overlay_data_path)
         _delete_directory(overlay_path)
         return status
+
+    if addons:
+        addons_path = overlay_path / "game" / "csgo" / "addons"
+        print(f"Creating {addons_path}")
+        addons_path.mkdir(exist_ok=True)
+        gameinfo_path = overlay_path / "game" / "csgo" / "gameinfo.gi"
+        print(f"Updating {gameinfo_path} to include metamod")
+        try:
+            with _replace_file(gameinfo_path) as (read, write):
+                for line in read:
+                    if line.strip().split() == ["Game", "csgo"]:
+                        print("\t\t\tGame\tcsgo/addons/metamod", file=write)
+                    write.write(line)
+        except OSError as error:
+            print(f"Failed to link addons, ignoring: {error}")
 
 
 def start(name: str, rest: list[str | Path]) -> int:
@@ -144,6 +177,8 @@ def main() -> int:
     commands = parser.add_subparsers(dest="command")
     add_parser = commands.add_parser("add")
     add_parser.add_argument("name", help="A name to assign the overlay.")
+    add_parser.add_argument("-r", "--replace", action="store_true", help="Replace an existing overlay.")
+    add_parser.add_argument("-a", "--addons", action="store_true", help="Create and link an addons directory.")
     start_parser = commands.add_parser("start")
     start_parser.add_argument("name", help="A name to assign the overlay.")
     start_parser.add_argument("rest", nargs=argparse.REMAINDER, help="Forward args to server start.")
@@ -152,7 +187,7 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.command == "add":
-        return add(args.name)
+        return add(args.name, replace=args.replace, addons=args.addons)
     elif args.command == "start":
         return start(args.name, args.rest)
     elif args.command == "remove":
