@@ -81,7 +81,7 @@ RUN pip install cmake conan
 COPY etc/global.conf /root/.conan2/
 RUN conan profile detect \
     && conan profile detect --name debug \
-    && sed -i 's/^build_type=Release/build_type=Debug/' /root/.conan2/profiles/debug
+    && sed -i 's/^build_type=Release/build_type=Debug/' $(conan profile path debug)
 
 # Install AMBuild
 RUN git clone --depth 1 https://github.com/alliedmodders/ambuild ~/.ambuild && pip install ~/.ambuild
