@@ -1,7 +1,8 @@
 volumes:
   cs2s-client:  # Persist our download
     name: cs2s-client
-    external: true
+  cs2s-cache:  # Persist Conan packages and other resources
+    name: cs2s-cache
 services:
   cs2s:
     build: .  # Use ./Dockerfile
@@ -22,3 +23,6 @@ services:
       - type: volume  # Persist the downloaded client
         source: cs2s-client
         target: /cs2/
+      - type: volume
+        source: cs2s-cache
+        target: /cache/

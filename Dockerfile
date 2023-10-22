@@ -46,9 +46,10 @@ RUN apt install -y \
         python3.11-distutils \
         python3-pip
 
-# Create the dev path to mount
+# Mark our various volumes; see compose.yml for more context
 VOLUME /work
 VOLUME /cs2
+VOLUME /cache
 
 # Expose CS2 ports: https://developer.valvesoftware.com/wiki/Source_Dedicated_Server
 EXPOSE 27015/tcp
@@ -77,6 +78,7 @@ RUN ln -s /home/steam/.steam/steamcmd/linux32/steamclient.so /home/steam/.steam/
 RUN pip install cmake conan
 
 # Create two Conan profiles
+COPY etc/global.conf /root/.conan2/
 RUN conan profile detect \
     && conan profile detect --name debug \
     && sed -i 's/^build_type=Release/build_type=Debug/' /root/.conan2/profiles/debug
@@ -90,7 +92,7 @@ RUN git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf && yes | ~/.f
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 RUN sed -i 's/^plugins=.*/plugins=(git fzf dirhistory)/' /root/.zshrc
 RUN sed -i 's/^ZSH_THEME=.*/ZSH_THEME="cs2s"/' /root/.zshrc
-COPY cs2s.zsh-theme /root/.oh-my-zsh/themes
+COPY etc/cs2s.zsh-theme /root/.oh-my-zsh/themes
 RUN sed -i 's/\r$//' /root/.oh-my-zsh/themes/cs2s.zsh-theme
 RUN echo "cd /work" >> /root/.zshrc
 RUN chsh -s /usr/bin/zsh

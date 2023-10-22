@@ -134,6 +134,30 @@ def add(name: str, replace: bool, addons: bool) -> int:
             print(f"Failed to link addons, ignoring: {error}")
 
 
+def install(name: str, prefix: Path, paths: list[Path]) -> int:
+    """Copy a series of paths into an overlay, globbing directories."""
+
+    overlay_path = STEAM_PATH / name
+    install_path = overlay_path / prefix
+    print(f"Installing {len(paths)} items into {install_path}")
+
+    def _map_paths() -> Iterator[tuple[Path, Path]]:
+        for path in paths:
+            if path.is_dir():
+                for subpath in path.rglob("*"):
+                    yield subpath, install_path / Path(*subpath.parts[1:])
+            else:
+                yield path, install_path / path
+
+    for from_path, to_path in _map_paths():
+        if from_path.is_dir():
+            to_path.mkdir(exist_ok=True, parents=True)
+        else:
+            shutil.copy(from_path, to_path)
+            print(f"Installed {to_path}")
+        shutil.chown(to_path, user=STEAM_USER, group=STEAM_GROUP)
+
+
 def start(name: str, rest: list[str | Path]) -> int:
     """Start the dedicated server out of an overlay."""
 
@@ -175,19 +199,37 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description=main.__doc__)
     commands = parser.add_subparsers(dest="command")
-    add_parser = commands.add_parser("add")
+    add_parser = commands.add_parser("add", help=add.__doc__)
     add_parser.add_argument("name", help="A name to assign the overlay.")
     add_parser.add_argument("-r", "--replace", action="store_true", help="Replace an existing overlay.")
     add_parser.add_argument("-a", "--addons", action="store_true", help="Create and link an addons directory.")
-    start_parser = commands.add_parser("start")
-    start_parser.add_argument("name", help="A name to assign the overlay.")
+    install_parser = commands.add_parser("install", help=install.__doc__)
+    install_parser.add_argument("name", help="The name of the overlay to install files into.")
+    install_parser.add_argument(
+        "-p",
+        "--prefix",
+        default=Path("game/csgo"),
+        type=Path,
+        help="A subpath to install files into.",
+    )
+    install_parser.add_argument(
+        "paths",
+        nargs="*",
+        type=Path,
+        default=[Path("package")],
+        help="A series of paths to copy.",
+    )
+    start_parser = commands.add_parser("start", help=start.__doc__)
+    start_parser.add_argument("name", help="The name of the overlay to start.")
     start_parser.add_argument("rest", nargs=argparse.REMAINDER, help="Forward args to server start.")
-    remove_parser = commands.add_parser("remove")
-    remove_parser.add_argument("name", help="A name to assign the overlay.")
+    remove_parser = commands.add_parser("remove", help=remove.__doc__)
+    remove_parser.add_argument("name", help="The name of the overlay to remove.")
 
     args = parser.parse_args()
     if args.command == "add":
         return add(args.name, replace=args.replace, addons=args.addons)
+    elif args.command == "install":
+        return install(args.name, prefix=args.prefix, paths=args.paths)
     elif args.command == "start":
         return start(args.name, args.rest)
     elif args.command == "remove":
