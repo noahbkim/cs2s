@@ -1,4 +1,3 @@
 #!/bin/bash -e
 
-read -r -p "Steam username: " username
-su steam -c "steamcmd +force_install_dir /cs2 +login $username +app_update 730 validate +quit"
+su steam -c "steamcmd +force_install_dir /cs2 +login anonymous +app_update 730 validate +quit"
